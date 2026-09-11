@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#131c2e"/>
+      <stop offset="60%" stop-color="#07090e"/>
+      <stop offset="100%" stop-color="#030407"/>
+    </radialGradient>
+
+    <!-- Gold Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="40%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Base Circle with Border -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="6" />
+  
+  <!-- Outer Zodiac Ring -->
+  <circle cx="256" cy="256" r="215" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="4,8" opacity="0.6"/>
+  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#goldGrad)" stroke-width="3" opacity="0.8"/>
+
+  <!-- 12-Spoke Astrological Divisional Lines (Rashi Cusps) -->
+  <g stroke="#f59e0b" stroke-width="1.5" opacity="0.35">
+    <line x1="256" y1="41" x2="256" y2="471"/>
+    <line x1="41" y1="256" x2="471" y2="256"/>
+    <line x1="104" y1="104" x2="408" y2="408"/>
+    <line x1="104" y1="408" x2="408" y2="104"/>
+    <line x1="69" y1="148" x2="443" y2="364"/>
+    <line x1="69" y1="364" x2="443" y2="148"/>
+    <line x1="148" y1="69" x2="364" y2="443"/>
+    <line x1="364" y1="69" x2="148" y2="443"/>
+  </g>
+
+  <!-- Sacred Geometry - Interlocking Square (Vedic Kundali Diamond) -->
+  <polygon points="256,96 416,256 256,416 96,256" fill="none" stroke="url(#goldGrad)" stroke-width="3.5" opacity="0.75"/>
+  <polygon points="256,120 392,256 256,392 120,256" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6,6" opacity="0.5"/>
+
+  <!-- Central Star of Guidance (Navagraha Core) -->
+  <g filter="url(#glow)">
+    <!-- 8-Pointed Star -->
+    <path d="M 256,160 L 274,238 L 352,256 L 274,274 L 256,352 L 238,274 L 160,256 L 238,238 Z" fill="url(#goldGrad)"/>
+    <path d="M 256,188 L 268,244 L 324,256 L 268,268 L 256,324 L 244,268 L 188,256 L 244,244 Z" fill="#ffffff" opacity="0.85"/>
+  </g>
+
+  <!-- Center Core Bindu -->
+  <circle cx="256" cy="256" r="10" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="5" fill="#fde68a"/>
+
+  <!-- Corner Planetary Orbs (Sun, Moon, Jupiter, Saturn) -->
+  <circle cx="256" cy="70" r="7" fill="url(#goldGrad)"/>
+  <circle cx="442" cy="256" r="7" fill="url(#goldGrad)"/>
+  <circle cx="256" cy="442" r="7" fill="url(#goldGrad)"/>
+  <circle cx="70" cy="256" r="7" fill="url(#goldGrad)"/>
+</svg>

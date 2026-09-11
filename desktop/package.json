@@ -1,0 +1,75 @@
+{
+  "name": "astroledger-desktop",
+  "version": "1.0.0",
+  "description": "AstroLedger — Vedic Astrology Client & Practice Management System",
+  "author": "AstroLedger Jyotish Technologies",
+  "main": "dist/main.js",
+  "scripts": {
+    "build:electron": "tsc -p tsconfig.json",
+    "build:renderer": "node -e \"const fs=require('fs'); if(fs.existsSync('../frontend/dist')) { fs.cpSync('../frontend/dist', './renderer', {recursive: true}); console.log('Copied frontend bundle to desktop/renderer'); } else { console.warn('Warning: frontend/dist not found. Run npm run build in frontend first.'); }\"",
+    "build:all": "npm run build:electron && npm run build:renderer",
+    "start": "electron .",
+    "pack:win": "electron-builder --win",
+    "pack:dir": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.astroledger.desktop",
+    "productName": "AstroLedger",
+    "copyright": "Copyright © 2026 AstroLedger Jyotish Technologies",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__",
+          "!**/*.pyc",
+          "!backups/**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.svg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AstroLedger",
+      "uninstallDisplayName": "AstroLedger"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "electron": "^29.1.5",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.2.2"
+  }
+}

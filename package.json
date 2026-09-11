@@ -1,0 +1,16 @@
+{
+  "name": "astroledger-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AstroLedger — Vedic Astrology Client & Practice Management System",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "start:backend": "cd backend && python manage.py runserver 8000",
+    "test:backend": "cd backend && python manage.py test apps.accounts apps.clients apps.consultations apps.dashboard apps.sync apps.core",
+    "electron:dev": "cd desktop && npm run start",
+    "build:desktop": "npm run build:frontend && cd desktop && npm run build:all && npm run pack:win",
+    "pack:desktop:dir": "npm run build:frontend && cd desktop && npm run build:all && npm run pack:dir",
+    "build:mobile": "npm run build:frontend && cd mobile && npm run cap:sync"
+  }
+}

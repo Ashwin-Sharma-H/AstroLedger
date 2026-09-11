@@ -1,0 +1,98 @@
+# =============================================================================
+# AstroLedger — Docker Compose Stack
+# =============================================================================
+# Multi-service development and deployment configuration.
+#
+# Quick start:
+#   docker-compose up -d           # Start all services
+#   docker-compose logs -f backend # Follow backend logs
+#   docker-compose down            # Stop and remove containers
+#
+# Production:
+#   docker-compose -f docker-compose.yml up -d --build
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: astroledger-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astroledger
+      POSTGRES_USER: astroledger_user
+      POSTGRES_PASSWORD: astroledger_secure_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - astroledger_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astroledger_user -d astroledger"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Redis 7 (Django Channels & WebSocket Layer)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: astroledger-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - astroledger_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # AstroLedger Django Backend
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: astroledger-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: "change-this-in-production-use-a-long-random-key"
+      DJANGO_DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend"
+      DB_ENGINE: postgres
+      POSTGRES_DB: astroledger
+      POSTGRES_USER: astroledger_user
+      POSTGRES_PASSWORD: astroledger_secure_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: "redis://redis:6379/0"
+      CONN_MAX_AGE: "600"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      SECURE_SSL_REDIRECT: "False"
+    ports:
+      - "8000:8000"
+    volumes:
+      - astroledger_media:/app/media
+      - astroledger_backups:/app/backups
+
+volumes:
+  astroledger_pgdata:
+    driver: local
+  astroledger_redisdata:
+    driver: local
+  astroledger_media:
+    driver: local
+  astroledger_backups:
+    driver: local

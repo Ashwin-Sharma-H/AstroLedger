@@ -1,0 +1,118 @@
+# =============================================================================
+# AstroLedger - Root Git Ignore Configuration
+# =============================================================================
+
+# --- Python & Django ---
+**/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Django specific
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.db-journal
+backend/db.sqlite3
+backend/backups/
+**/backups/*.db
+**/backups/*.sqlite3
+media/
+staticfiles/
+
+# Virtual Environments
+venv/
+**/venv/
+.venv/
+**/.venv/
+env/
+**/env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables & secrets
+.env
+**/.env
+.env.local
+.env.*.local
+*.env
+!*.env.example
+!backend/.env.example
+
+# --- Node / React / Vite / Frontend ---
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vite / React cache
+.vite/
+**/.vite/
+.turbo/
+**/.turbo/
+
+# --- Desktop / Electron ---
+desktop/dist/
+desktop/build/
+desktop/release/
+release/
+build/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# --- Mobile / Capacitor ---
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/App/build/
+mobile/ios/App/Pods/
+mobile/ios/App/Podfile.lock
+
+# --- OS & Editor Specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor caches
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary scratch scripts
+extract_plan.py

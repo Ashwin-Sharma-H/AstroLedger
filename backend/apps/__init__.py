@@ -1,0 +1,3 @@
+"""
+Apps root package.
+"""
