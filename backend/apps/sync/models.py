@@ -42,6 +42,10 @@ class ConnectedDevice(models.Model):
     user_agent = models.CharField(max_length=255, blank=True)
     last_seen = models.DateTimeField(auto_now=True, db_index=True)
     is_active = models.BooleanField(default=True)
+    # Incremented whenever a companion is paired again or explicitly removed.
+    # QR/PIN-issued JWTs carry this value, so old sessions cannot be reused.
+    session_version = models.PositiveIntegerField(default=1)
+    revoked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -53,3 +57,23 @@ class ConnectedDevice(models.Model):
 
     def __str__(self):
         return f"{self.device_name} ({self.device_id}) - {self.user}"
+
+
+class PairingTicket(models.Model):
+    """
+    Short-lived, single-use pairing token for zero-password companion device login.
+    Generated on the main PC (via QR code) and claimed by mobile/tablet cameras.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_code = models.CharField(max_length=64, unique=True, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='pairing_tickets')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    is_claimed = models.BooleanField(default=False)
+    claimed_by_device = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Ticket {self.ticket_code} for {self.user} (Claimed: {self.is_claimed})"

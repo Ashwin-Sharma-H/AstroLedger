@@ -351,7 +351,7 @@ export const NewConsultationModal: React.FC<NewConsultationModalProps> = ({
                 <input
                   type="time"
                   name="consultation_time"
-                  value={formData.consultation_time}
+                  value={formData.consultation_time || ''}
                   onChange={handleChange}
                   className="input-control"
                 />

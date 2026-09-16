@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
+from rest_framework.renderers import JSONRenderer
 from channels.layers import get_channel_layer
 import logging
 
@@ -16,6 +17,9 @@ class HealthCheckView(APIView):
     """
     permission_classes = [permissions.AllowAny]
     throttle_classes = []  # Exclude health check from throttling
+    # The bundled backend intentionally excludes DRF's browsable-API templates.
+    # Health is a machine endpoint, so always return JSON to browsers as well.
+    renderer_classes = [JSONRenderer]
 
     def get(self, request):
         checks = {

@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../../components/Modal';
 import { User } from '../../types';
 import { apiRequest } from '../../core/api/client';
-import { UserCheck, KeyRound, Check, AlertCircle } from 'lucide-react';
+import { UserCheck, KeyRound, Check, AlertCircle, LogOut } from 'lucide-react';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
   onProfileUpdated: () => void;
+  onLogout?: () => void;
 }
 
 export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
@@ -16,6 +17,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   onClose,
   currentUser,
   onProfileUpdated,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
 
@@ -313,6 +315,53 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               </button>
             </div>
           </form>
+        )}
+
+        {/* Sign Out Section */}
+        {onLogout && (
+          <div
+            style={{
+              marginTop: '24px',
+              paddingTop: '16px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>
+                Astrologer Session
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                {currentUser?.email || 'Active Account'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '8px',
+                background: 'rgba(251, 113, 133, 0.12)',
+                border: '1px solid rgba(251, 113, 133, 0.3)',
+                color: '#fb7185',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <LogOut size={14} />
+              Sign Out
+            </button>
+          </div>
         )}
       </div>
     </Modal>

@@ -36,7 +36,7 @@ function polyMul(p1: Uint8Array, p2: Uint8Array): Uint8Array {
 }
 
 function getRSPoly(ecCount: number): Uint8Array {
-  let poly = new Uint8Array([1]);
+  let poly: Uint8Array = new Uint8Array([1]);
   for (let i = 0; i < ecCount; i++) {
     poly = polyMul(poly, new Uint8Array([1, GF256_EXP[i]]));
   }
@@ -74,10 +74,14 @@ function generateQRMatrix(text: string): boolean[][] {
 
   // Pick suitable version based on byte length
   let version = 1;
-  while (version <= 5 && QR_SPECS[version].dataCodewords - 3 < rawBytes.length) {
+  // Byte-mode QR needs 12 header bits plus a terminator/padding. The previous
+  // check overstated capacity and silently emitted malformed matrices.
+  while (version <= 5 && rawBytes.length + 2 > QR_SPECS[version].dataCodewords) {
     version++;
   }
-  if (version > 5) version = 5;
+  if (version > 5) {
+    throw new Error('Pairing QR payload is too large');
+  }
 
   const spec = QR_SPECS[version];
   const size = spec.size;

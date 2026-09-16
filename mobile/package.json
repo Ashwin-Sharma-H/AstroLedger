@@ -12,7 +12,8 @@
     "cap:open:android": "cap open android",
     "cap:open:ios": "cap open ios",
     "cap:run:android": "cap run android",
-    "cap:run:ios": "cap run ios"
+    "cap:run:ios": "cap run ios",
+    "build:apk": "npm run build:frontend && cap sync android && cd android && .\\gradlew.bat assembleDebug"
   },
   "dependencies": {
     "@capacitor/core": "^5.7.0",

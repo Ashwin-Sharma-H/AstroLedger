@@ -13,14 +13,19 @@ import { AdvancedSearchModal } from './features/search/AdvancedSearchModal';
 import { LoginModal } from './features/auth/LoginModal';
 import { ProfileSettingsModal } from './features/auth/ProfileSettingsModal';
 import { DeviceManagerModal } from './features/devices/DeviceManagerModal';
+import { MobilePairingView } from './features/devices/MobilePairingView';
 import { apiRequest, getAccessToken, clearTokens, toggleFollowUp } from './core/api/client';
 import { SyncEngine } from './core/sync/syncEngine';
+import { isCompanionDevice } from './core/platform';
+import { clearOfflineData } from './core/storage/indexedDB';
 import { Client, Consultation, DashboardData, User } from './types';
 
 export const App: React.FC = () => {
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getAccessToken());
+  const [showCompanionLoggedOutNotice, setShowCompanionLoggedOutNotice] = useState(false);
+  const isCompanion = isCompanionDevice();
 
   // Modal states
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
@@ -35,12 +40,29 @@ export const App: React.FC = () => {
   const [consultationTargetClient, setConsultationTargetClient] = useState<Client | null>(null);
   const [isClientDetailOpen, setIsClientDetailOpen] = useState(false);
 
-  // Initialize background sync engine
+  // Start sync when a Main-PC session or a companion pairing supplies tokens.
   useEffect(() => {
     const syncEngine = SyncEngine.getInstance();
-    syncEngine.flushQueue();
-    syncEngine.connectWebSocket();
-  }, []);
+    if (isAuthenticated) {
+      syncEngine.start();
+    }
+  }, [isAuthenticated]);
+
+  // Only an explicit Main-PC revocation triggers this reset. Network loss is
+  // handled inside SyncEngine as an offline/retry state instead.
+  useEffect(() => {
+    const handleRevocation = () => {
+      if (!isCompanion) return;
+      SyncEngine.getInstance().disconnect();
+      queryClient.clear();
+      void clearOfflineData();
+      setIsAuthenticated(false);
+      setShowCompanionLoggedOutNotice(true);
+      setCurrentTab('dashboard');
+    };
+    window.addEventListener('astroledger-device-revoked', handleRevocation);
+    return () => window.removeEventListener('astroledger-device-revoked', handleRevocation);
+  }, [isCompanion, queryClient]);
 
   // Global keyboard shortcut Ctrl+K
   useEffect(() => {
@@ -167,6 +189,20 @@ export const App: React.FC = () => {
     setIsLoginOpen(true);
   };
 
+
+
+  if (isCompanion && !isAuthenticated) {
+    return <MobilePairingView
+      showLoggedOutNotice={showCompanionLoggedOutNotice}
+      onContinueAfterLogout={() => setShowCompanionLoggedOutNotice(false)}
+      onPairedSuccess={() => {
+        setShowCompanionLoggedOutNotice(false);
+        setIsAuthenticated(true);
+        queryClient.invalidateQueries();
+      }}
+    />;
+  }
+
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -180,7 +216,7 @@ export const App: React.FC = () => {
         }}
         currentUser={currentUser}
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
-        onOpenDeviceManager={() => setIsDeviceManagerOpen(true)}
+        onOpenDeviceManager={isCompanion ? undefined : () => setIsDeviceManagerOpen(true)}
         onLogout={isAuthenticated ? handleLogout : () => setIsLoginOpen(true)}
       />
 
@@ -198,7 +234,7 @@ export const App: React.FC = () => {
           }
           currentUser={currentUser}
           onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
-          onOpenDeviceManager={() => setIsDeviceManagerOpen(true)}
+          onOpenDeviceManager={isCompanion ? undefined : () => setIsDeviceManagerOpen(true)}
         />
         <main className="content-viewport">
           {currentTab === 'dashboard' && (
@@ -314,7 +350,10 @@ export const App: React.FC = () => {
 
       <LoginModal
         isOpen={isLoginOpen || !isAuthenticated}
-        onClose={() => setIsLoginOpen(false)}
+        showCloseButton={isAuthenticated}
+        onClose={() => {
+          setIsLoginOpen(false);
+        }}
         onLoginSuccess={() => {
           setIsAuthenticated(true);
           queryClient.invalidateQueries();
@@ -328,12 +367,15 @@ export const App: React.FC = () => {
         onProfileUpdated={() => {
           refetchCurrentUser();
         }}
+        onLogout={handleLogout}
       />
 
-      <DeviceManagerModal
-        isOpen={isDeviceManagerOpen}
-        onClose={() => setIsDeviceManagerOpen(false)}
-      />
+      {!isCompanion && (
+        <DeviceManagerModal
+          isOpen={isDeviceManagerOpen}
+          onClose={() => setIsDeviceManagerOpen(false)}
+        />
+      )}
     </div>
   );
 };

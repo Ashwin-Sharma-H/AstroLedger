@@ -104,6 +104,22 @@ DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite')
 CONN_MAX_AGE = int(os.environ.get('CONN_MAX_AGE', '0' if DEBUG else '600'))
 POSTGRES_SSL_MODE = os.environ.get('POSTGRES_SSL_MODE', '')
 
+# =============================================================================
+# Writable User Data Directory (Zero-Config Desktop Support)
+# =============================================================================
+ASTRO_DATA_DIR = os.environ.get('ASTROLEDGER_DATA_DIR')
+if ASTRO_DATA_DIR:
+    DATA_PATH = Path(ASTRO_DATA_DIR)
+else:
+    DATA_PATH = BASE_DIR
+
+FRONTEND_DIST_DIR = BASE_DIR.parent / 'frontend' / 'dist'
+
+try:
+    DATA_PATH.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
 if DATABASE_URL:
     # Priority 1: DATABASE_URL takes precedence
     DATABASES = {
@@ -126,11 +142,11 @@ elif DB_ENGINE == 'postgres':
         }
     }
 else:
-    # Priority 3: SQLite — zero-setup local development
+    # Priority 3: SQLite — zero-setup local development and desktop clients
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': DATA_PATH / 'db.sqlite3',
         }
     }
 
@@ -161,14 +177,14 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = DATA_PATH / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.sync.authentication.CompanionAwareJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -194,7 +210,7 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration for Desktop (Electron) and Mobile (Capacitor)
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Permissive in dev only; production must use explicit origins
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
@@ -203,9 +219,13 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost(:[0-9]+)?$",
-    r"^http://127.0.0.1(:[0-9]+)?$",
+    r"^http://127\.0\.0\.1(:[0-9]+)?$",
+    r"^http://192\.168\.[0-9]+\.[0-9]+(:[0-9]+)?$",
+    r"^http://10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$",
     r"^capacitor://localhost$",
     r"^ionic://localhost$",
+    r"^file://.*$",
+    r"^null$",
 ]
 
 # Channels Layer (In-memory for dev, Redis in production)
@@ -244,5 +264,4 @@ if not DEBUG:
 # =============================================================================
 # Backup Configuration
 # =============================================================================
-BACKUP_DIR = BASE_DIR / 'backups'
-
+BACKUP_DIR = DATA_PATH / 'backups'

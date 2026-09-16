@@ -12,26 +12,6 @@ export const setServerUrl = (url: string) => {
   }
 };
 
-// Auto-detect server URL from QR code scan (?server=http://192.168.1.X:8000)
-if (typeof window !== 'undefined' && window.location && window.location.search) {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const scannedServer = params.get('server');
-    if (scannedServer) {
-      setServerUrl(scannedServer);
-      const cleanUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, cleanUrl);
-      console.log(`[AstroLedger] Auto-paired with server from QR code: ${scannedServer}`);
-    }
-  } catch (e) {
-    // Ignore in non-browser environments
-  }
-}
-
-interface RequestOptions extends RequestInit {
-  requiresAuth?: boolean;
-}
-
 export const getAccessToken = (): string | null => localStorage.getItem('astro_access_token');
 export const getRefreshToken = (): string | null => localStorage.getItem('astro_refresh_token');
 
@@ -44,6 +24,53 @@ export const clearTokens = () => {
   localStorage.removeItem('astro_access_token');
   localStorage.removeItem('astro_refresh_token');
 };
+
+/**
+ * This is deliberately reserved for an explicit server-side revocation.  A
+ * fetch failure or a changed Wi-Fi network must never send a sub system back
+ * to QR pairing.
+ */
+export const handleDeviceRevocation = () => {
+  clearTokens();
+  window.dispatchEvent(new CustomEvent('astroledger-device-revoked'));
+};
+
+const responseIsDeviceRevoked = async (response: Response): Promise<boolean> => {
+  if (response.status !== 401) return false;
+  const body = await response.clone().json().catch(() => ({}));
+  return body?.code === 'device_revoked' || body?.detail?.code === 'device_revoked';
+};
+
+// Auto-detect server URL and authentication tokens from QR code scan
+if (typeof window !== 'undefined' && window.location && window.location.search) {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const scannedServer = params.get('server');
+    const scannedToken = params.get('token');
+    const scannedRefresh = params.get('refresh');
+
+    if (scannedServer) {
+      setServerUrl(scannedServer);
+      console.log(`[AstroLedger] Auto-paired with server from QR code: ${scannedServer}`);
+    }
+
+    if (scannedToken && scannedRefresh) {
+      setTokens(scannedToken, scannedRefresh);
+      console.log('[AstroLedger] Auto-authenticated via QR pairing tokens.');
+    }
+
+    if (scannedServer || scannedToken) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  } catch (e) {
+    // Ignore in non-browser environments
+  }
+}
+
+interface RequestOptions extends RequestInit {
+  requiresAuth?: boolean;
+}
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { requiresAuth = true, headers = {}, ...rest } = options;
@@ -69,6 +96,10 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
 
   // Token refresh logic if 401 received
   if (response.status === 401 && requiresAuth) {
+    if (await responseIsDeviceRevoked(response)) {
+      handleDeviceRevocation();
+      throw new Error('This sub system was removed from the Main PC.');
+    }
     const refresh = getRefreshToken();
     if (refresh) {
       try {
@@ -83,11 +114,18 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
           setTokens(data.access, refresh);
           requestHeaders['Authorization'] = `Bearer ${data.access}`;
           response = await fetch(url, { ...rest, headers: requestHeaders });
+        } else if (await responseIsDeviceRevoked(refreshResponse)) {
+          handleDeviceRevocation();
+          throw new Error('This sub system was removed from the Main PC.');
         } else {
           clearTokens();
         }
       } catch (err) {
-        clearTokens();
+        // Do not clear a valid session merely because the station cannot be
+        // reached. The sync engine will remain offline and retry later.
+        if (err instanceof Error && err.message.includes('removed from the Main PC')) {
+          throw err;
+        }
       }
     }
   }

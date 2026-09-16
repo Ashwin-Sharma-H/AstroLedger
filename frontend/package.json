@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:mobile": "npm run build && cd ../mobile && npx cap sync",
+    "build:desktop": "cd .. && npm run build:desktop"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.28.4",

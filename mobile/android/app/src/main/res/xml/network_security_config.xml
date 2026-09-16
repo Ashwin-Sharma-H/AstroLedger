@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AstroLedger companion devices pair with a Main PC on the local Wi-Fi.
+  The station is intentionally reached by a private IPv4 HTTP address, so
+  Android must explicitly permit clear-text local-network traffic.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

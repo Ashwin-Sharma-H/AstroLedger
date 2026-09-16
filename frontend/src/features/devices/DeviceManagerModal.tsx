@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../../components/Modal';
 import { QRCodeSVG } from '../../components/QRCodeSVG';
-import { apiRequest } from '../../core/api/client';
+import { apiRequest, getBaseUrl } from '../../core/api/client';
 import { getDeviceId, detectDeviceName, detectDeviceType } from '../../core/sync/syncEngine';
 import {
   Smartphone,
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Radio,
   ShieldCheck,
+  Clock,
 } from 'lucide-react';
 
 interface DeviceItem {
@@ -38,6 +39,25 @@ interface ServerInfo {
   pair_url: string;
 }
 
+interface PairingTicketResponse {
+  ticket_code: string;
+  server_url: string;
+  pair_url: string;
+  pin_code?: string;
+  local_ip?: string;
+  expires_at: string;
+  expires_in_seconds: number;
+  user_name: string;
+  qr_payload: {
+    protocol: string;
+    version: number;
+    server: string;
+    ticket: string;
+    pin?: string;
+    user_name: string;
+  };
+}
+
 interface DeviceManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,12 +66,48 @@ interface DeviceManagerModalProps {
 export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'qr' | 'devices'>('qr');
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [pairingTicket, setPairingTicket] = useState<PairingTicketResponse | null>(null);
+  const [ticketCountdown, setTicketCountdown] = useState<number>(300);
+  const [isGeneratingTicket, setIsGeneratingTicket] = useState<boolean>(false);
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedPin, setCopiedPin] = useState(false);
+  const [copiedIp, setCopiedIp] = useState(false);
   const [error, setError] = useState('');
 
+  const handleCopyPin = () => {
+    const pin = pairingTicket?.pin_code || pairingTicket?.ticket_code;
+    if (pin) {
+      navigator.clipboard.writeText(pin);
+      setCopiedPin(true);
+      setTimeout(() => setCopiedPin(false), 2000);
+    }
+  };
+
+  const handleCopyIp = () => {
+    const ip = serverInfo?.local_ip;
+    if (ip) {
+      navigator.clipboard.writeText(ip);
+      setCopiedIp(true);
+      setTimeout(() => setCopiedIp(false), 2000);
+    }
+  };
+
   const currentDeviceId = getDeviceId();
+
+  const generateTicket = async () => {
+    setIsGeneratingTicket(true);
+    try {
+      const res = await apiRequest<PairingTicketResponse>('/api/sync/pair/generate/', { method: 'POST' });
+      setPairingTicket(res);
+      setTicketCountdown(res.expires_in_seconds || 300);
+    } catch (ticketErr: any) {
+      console.warn('Generate pairing ticket note:', ticketErr);
+    } finally {
+      setIsGeneratingTicket(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -65,7 +121,10 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
       setError(err.message || 'Failed to load server information.');
     }
 
-    // 2. Send heartbeat for this device (non-fatal background call)
+    // 2. Generate secure, single-use pairing ticket
+    await generateTicket();
+
+    // 3. Send heartbeat for this device (non-fatal background call)
     try {
       await apiRequest('/api/sync/devices/heartbeat/', {
         method: 'POST',
@@ -79,7 +138,7 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
       console.warn('Device heartbeat background note:', hbErr);
     }
 
-    // 3. Fetch list of all active connected devices
+    // 4. Fetch list of all active connected devices
     try {
       const deviceList = await apiRequest<DeviceItem[]>('/api/sync/devices/');
       setDevices(deviceList);
@@ -96,7 +155,26 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
     }
   }, [isOpen]);
 
+  // Countdown timer for pairing ticket
+  useEffect(() => {
+    if (!isOpen || !pairingTicket) return;
+    const interval = setInterval(() => {
+      setTicketCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen, pairingTicket]);
+
   const handleDisconnectDevice = async (deviceId: string) => {
+    const confirmed = window.confirm(
+      'Remove this sub system? It will be signed out immediately and must scan a new QR code or enter a new 6-digit PIN to reconnect.',
+    );
+    if (!confirmed) return;
     try {
       await apiRequest(`/api/sync/devices/${deviceId}/`, { method: 'DELETE' });
       setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
@@ -107,7 +185,8 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
 
   const handleCopyLink = () => {
     if (!serverInfo) return;
-    navigator.clipboard.writeText(serverInfo.pair_url);
+    const directUrl = pairingTicket?.pair_url || serverInfo.pair_url;
+    navigator.clipboard.writeText(directUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -138,12 +217,26 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
     }
   };
 
-  const qrPairingUrl = serverInfo
-    ? serverInfo.pair_url
-    : `${window.location.origin}/?server=${window.location.origin}`;
+  const qrPairingPayload = React.useMemo(() => {
+    if (pairingTicket?.pair_url) {
+      return pairingTicket.pair_url;
+    }
+    // Never fall back to embedding account tokens in a QR. A ticket must be
+    // generated before the companion can be linked.
+    return serverInfo?.pair_url || `${getBaseUrl()}/pair?role=companion`;
+  }, [pairingTicket, serverInfo]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Connected Devices & Mobile Pairing" maxWidth="600px">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Connected Devices & Mobile Pairing"
+      maxWidth="840px"
+      bodyStyle={{
+        padding: '16px 24px 20px',
+        overflowY: activeTab === 'qr' ? 'hidden' : 'auto',
+      }}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', gap: '8px' }}>
@@ -209,72 +302,271 @@ export const DeviceManagerModal: React.FC<DeviceManagerModalProps> = ({ isOpen, 
           </div>
         )}
 
-        {/* TAB 1: QR Code Pairing */}
+        {/* TAB 1: QR Code & Station Linking (Horizontal No-Scroll Layout) */}
         {activeTab === 'qr' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '270px 1fr',
+              gap: '24px',
+              alignItems: 'start',
+            }}
+          >
+            {/* LEFT COLUMN: QR Code Card */}
             <div
               style={{
-                background: '#ffffff',
-                padding: '12px',
-                borderRadius: '16px',
-                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
-                display: 'inline-block',
-                marginTop: '6px',
-              }}
-            >
-              <QRCodeSVG value={qrPairingUrl} size={210} fgColor="#07090e" bgColor="#ffffff" />
-            </div>
-
-            <div>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
-                Scan to Connect Mobile or Tablet
-              </h4>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '420px', lineHeight: 1.4 }}>
-                1. Ensure your phone or iPad is on the <strong>same clinic Wi-Fi</strong>.<br />
-                2. Open your phone camera and point it at the QR code.<br />
-                3. Tap the link to open AstroLedger with <strong>automatic server binding</strong>.
-              </p>
-            </div>
-
-            {/* Direct Link Card */}
-            <div
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
+                textAlign: 'center',
+                gap: '10px',
+                padding: '16px',
+                background: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                <Wifi size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
-                <span
-                  style={{
-                    fontSize: '0.8rem',
-                    color: '#94a3b8',
-                    fontFamily: 'monospace',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {qrPairingUrl}
-                </span>
+              {/* Security Badge */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  background: 'rgba(52, 211, 153, 0.1)',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                  color: '#34d399',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                }}
+              >
+                <ShieldCheck size={13} />
+                Zero-Password QR Ticket
               </div>
 
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.78rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              {/* QR Code Container */}
+              <div style={{ position: 'relative' }}>
+                <div
+                  style={{
+                    background: '#ffffff',
+                    padding: '10px',
+                    borderRadius: '14px',
+                    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+                    display: 'inline-block',
+                    opacity: ticketCountdown === 0 ? 0.25 : 1,
+                    filter: ticketCountdown === 0 ? 'grayscale(100%)' : 'none',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <QRCodeSVG value={qrPairingPayload} size={180} fgColor="#07090e" bgColor="#ffffff" />
+                </div>
+
+                {ticketCountdown === 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      borderRadius: '14px',
+                      background: 'rgba(7, 9, 14, 0.85)',
+                    }}
+                  >
+                    <span style={{ color: '#fb7185', fontWeight: 600, fontSize: '0.82rem' }}>
+                      Ticket Expired
+                    </span>
+                    <button
+                      type="button"
+                      onClick={generateTicket}
+                      disabled={isGeneratingTicket}
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.75rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      <RefreshCw size={12} className={isGeneratingTicket ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Live Countdown & Refresh Button */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.76rem',
+                    color: ticketCountdown < 60 ? '#fb7185' : '#94a3b8',
+                    fontWeight: 500,
+                  }}
+                >
+                  <Clock size={13} color={ticketCountdown < 60 ? '#fb7185' : '#34d399'} />
+                  <span>
+                    Expires: <strong>{Math.floor(ticketCountdown / 60)}:{(ticketCountdown % 60).toString().padStart(2, '0')}</strong>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={generateTicket}
+                  disabled={isGeneratingTicket}
+                  className="btn-ghost"
+                  style={{
+                    fontSize: '0.74rem',
+                    color: '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                  }}
+                >
+                  <RefreshCw size={11} className={isGeneratingTicket ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                Scan with Phone / Tablet Camera
+              </span>
+            </div>
+
+            {/* RIGHT COLUMN: Instructions & Sub System PIN Card */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Mobile Scan Instructions */}
+              <div>
+                <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Smartphone size={16} color="#f59e0b" />
+                  Connect Mobile or Tablet
+                </h4>
+                <div
+                  style={{
+                    fontSize: '0.78rem',
+                    color: '#94a3b8',
+                    lineHeight: 1.45,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                  }}
+                >
+                  <div>1. Connect phone or tablet to the <strong>same Wi-Fi network</strong>.</div>
+                  <div>2. Open AstroLedger APK and tap <strong>'Scan PC Screen QR Code'</strong>.</div>
+                  <div>3. Device links automatically — <strong>no passwords or email needed</strong>!</div>
+                </div>
+              </div>
+
+              {/* Sub System direct link PIN box */}
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  textAlign: 'left',
+                }}
               >
-                {copied ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Laptop size={15} /> For Sub Systems (Manual Link)
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                    Same Wi-Fi
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Station IP</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc', fontFamily: 'monospace' }}>
+                        {serverInfo?.local_ip || '192.168.29.176'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyIp}
+                        title="Copy Station IP"
+                        style={{ background: 'transparent', border: 'none', color: copiedIp ? '#34d399' : '#94a3b8', cursor: 'pointer', padding: 0 }}
+                      >
+                        {copiedIp ? <Check size={12} /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>6-Digit Link PIN</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', letterSpacing: '3px', fontFamily: 'monospace' }}>
+                        {pairingTicket?.pin_code || pairingTicket?.ticket_code || '------'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyPin}
+                        title="Copy Link PIN"
+                        style={{ background: 'transparent', border: 'none', color: copiedPin ? '#34d399' : '#94a3b8', cursor: 'pointer', padding: 0 }}
+                      >
+                        {copiedPin ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.74rem', color: '#cbd5e1' }}>
+                  On the Sub System, scan the QR or enter this Station IP and PIN to link instantly.
+                </div>
+              </div>
+
+              {/* Direct Browser Link */}
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', minWidth: 0 }}>
+                  <Wifi size={14} color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <span
+                    style={{
+                      fontSize: '0.76rem',
+                      color: '#94a3b8',
+                      fontFamily: 'monospace',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {serverInfo?.api_url || 'http://192.168.29.176:8000'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.74rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                >
+                  {copied ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             </div>
           </div>
         )}

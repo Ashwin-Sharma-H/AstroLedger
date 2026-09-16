@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
-  Sparkles,
   Clock,
   Wifi,
   LogOut,
@@ -88,19 +87,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={isCollapsed ? toggleCollapse : undefined}
             title={isCollapsed ? 'Click to expand sidebar (Ctrl+B)' : 'AstroLedger'}
             style={{
-              width: '36px',
-              height: '36px',
+              width: '38px',
+              height: '38px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              background: '#ffffff',
+              padding: '2px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(245, 158, 11, 0.35)',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
               flexShrink: 0,
               cursor: isCollapsed ? 'pointer' : 'default',
+              overflow: 'hidden',
             }}
           >
-            <Sparkles size={20} color="#07090e" />
+            <img
+              src="/logo.png"
+              alt="AstroLedger"
+              onError={(e) => {
+                // Fallback to sparkles if logo not yet created
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent) parent.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+              }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
 
           {!isCollapsed && (

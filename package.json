@@ -9,8 +9,13 @@
     "start:backend": "cd backend && python manage.py runserver 8000",
     "test:backend": "cd backend && python manage.py test apps.accounts apps.clients apps.consultations apps.dashboard apps.sync apps.core",
     "electron:dev": "cd desktop && npm run start",
-    "build:desktop": "npm run build:frontend && cd desktop && npm run build:all && npm run pack:win",
-    "pack:desktop:dir": "npm run build:frontend && cd desktop && npm run build:all && npm run pack:dir",
-    "build:mobile": "npm run build:frontend && cd mobile && npm run cap:sync"
+    "build:backend": "cd backend && ..\\venv\\Scripts\\python.exe build_backend.py",
+    "build:desktop": "npm run build:backend && npm run build:frontend && cd desktop && npm run build:all && npm run pack:win",
+    "pack:desktop:dir": "npm run build:backend && npm run build:frontend && cd desktop && npm run build:all && npm run pack:dir",
+    "mobile:setup": "npm run build:frontend && cd mobile && npm install && npx cap add android",
+    "build:mobile": "npm run build:frontend && cd mobile && npx cap sync",
+    "icons:android": "powershell -ExecutionPolicy Bypass -File .\\generate_android_icons.ps1",
+    "build:apk": "npm run icons:android && npm run build:frontend && cd mobile && npx cap sync && cd android && .\\gradlew.bat assembleDebug",
+    "mobile:open": "cd mobile && npx cap open android"
   }
 }

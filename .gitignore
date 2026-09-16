@@ -76,6 +76,7 @@ lerna-debug.log*
 desktop/dist/
 desktop/build/
 desktop/release/
+desktop/renderer/
 release/
 build/
 *.exe
@@ -83,11 +84,19 @@ build/
 *.AppImage
 *.deb
 *.rpm
+*.blockmap
 
 # --- Mobile / Capacitor ---
+*.apk
+*.aab
+mobile/android/build/
 mobile/android/app/build/
 mobile/android/.gradle/
 mobile/android/local.properties
+mobile/android/.idea/
+mobile/android/app/src/main/assets/public/
+mobile/android/app/src/main/assets/capacitor.config.json
+mobile/android/app/src/main/assets/capacitor.plugins.json
 mobile/ios/App/build/
 mobile/ios/App/Pods/
 mobile/ios/App/Podfile.lock

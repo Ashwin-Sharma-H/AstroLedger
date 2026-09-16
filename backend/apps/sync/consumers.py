@@ -9,6 +9,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
+from .authentication import validate_companion_claims
+from .models import ConnectedDevice
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -25,15 +27,16 @@ class SyncConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.authenticated = False
         self.room_group_name = None
+        self.device_group_name = None
 
         # --- Attempt query-string JWT auth ---
         query_string = self.scope.get("query_string", b"").decode("utf-8")
         token = self._extract_token_from_query(query_string)
 
         if token:
-            user = await self._authenticate_token(token)
-            if user:
-                await self._bind_user(user)
+            auth = await self._authenticate_token(token)
+            if auth:
+                await self._bind_user(*auth)
                 await self.accept()
                 await self.send(text_data=json.dumps({
                     "type": "connection_established",
@@ -54,6 +57,11 @@ class SyncConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name,
             )
+        if self.device_group_name:
+            await self.channel_layer.group_discard(
+                self.device_group_name,
+                self.channel_name,
+            )
 
     async def receive(self, text_data):
         try:
@@ -65,9 +73,9 @@ class SyncConsumer(AsyncWebsocketConsumer):
 
         if action == "auth" and not self.authenticated:
             token = data.get("token", "")
-            user = await self._authenticate_token(token)
-            if user:
-                await self._bind_user(user)
+            auth = await self._authenticate_token(token)
+            if auth:
+                await self._bind_user(*auth)
                 await self.send(text_data=json.dumps({
                     "type": "connection_established",
                     "message": "Authenticated — subscribed to sync stream.",
@@ -86,6 +94,11 @@ class SyncConsumer(AsyncWebsocketConsumer):
         """Sends sync change notification payload to the connected device."""
         await self.send(text_data=json.dumps(event["data"]))
 
+    async def device_revoked(self, event):
+        """Immediately instruct a removed companion to return to pairing."""
+        await self.send(text_data=json.dumps(event["data"]))
+        await self.close(code=4003)
+
     # ─── helpers ────────────────────────────────────────────────────────
 
     @staticmethod
@@ -98,15 +111,25 @@ class SyncConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _authenticate_token(self, raw_token: str):
-        """Validate a JWT access token and return the User or None."""
+        """Validate a JWT access token and return ``(user, device)``."""
         try:
             validated = AccessToken(raw_token)
+            device_id = validate_companion_claims(validated)
             user_id = validated["user_id"]
-            return User.objects.get(id=user_id)
+            user = User.objects.get(id=user_id)
+            device = None
+            if device_id:
+                device = ConnectedDevice.objects.get(
+                    user=user,
+                    device_id=device_id,
+                    is_active=True,
+                    session_version=validated.get('companion_session_version'),
+                )
+            return user, device
         except Exception:
             return None
 
-    async def _bind_user(self, user):
+    async def _bind_user(self, user, device=None):
         """Subscribe the channel to the user's sync group."""
         self.authenticated = True
         self.scope["user"] = user
@@ -115,3 +138,9 @@ class SyncConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name,
         )
+        if device:
+            self.device_group_name = f"device_session_{device.id}"
+            await self.channel_layer.group_add(
+                self.device_group_name,
+                self.channel_name,
+            )

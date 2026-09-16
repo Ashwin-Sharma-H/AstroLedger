@@ -88,8 +88,8 @@ h1, h2, h3, h4, h5, h6 {
 /* Glassmorphic Panel */
 .glass-panel {
   background: var(--bg-card);
-  backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-subtle);
@@ -113,6 +113,7 @@ h1, h2, h3, h4, h5, h6 {
 .sidebar {
   width: 260px;
   background: rgba(10, 14, 23, 0.95);
+  -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--border-subtle);
   display: flex;
@@ -168,6 +169,7 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
   background: rgba(10, 14, 23, 0.7);
+  -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   flex-shrink: 0;
   z-index: 10;
@@ -211,6 +213,38 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 18px rgba(245, 158, 11, 0.45);
+}
+
+/* Dedicated action inside Sync Health: do not inherit generic inline-button
+   sizing, which made it appear as a thin strip in the desktop modal. */
+.sync-health-action {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #07090e;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.28);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.sync-health-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 22px rgba(245, 158, 11, 0.38);
+}
+
+.sync-health-action:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .btn-secondary {
@@ -345,6 +379,7 @@ select option:checked {
   position: fixed;
   inset: 0;
   background: rgba(3, 7, 18, 0.75);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -505,6 +540,127 @@ select option:checked {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Unified Login Station Mode Switcher Bar */
+.login-mode-switcher-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.login-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  color: var(--text-secondary);
+  box-sizing: border-box;
+}
+
+.login-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+}
+
+.login-mode-btn.active-sub {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  box-shadow: 0 2px 12px rgba(56, 189, 248, 0.12);
+}
+
+.login-mode-btn.active-main {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.12);
+}
+
+.login-mode-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.login-mode-btn.active-sub .login-mode-icon-circle {
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.35);
+}
+
+.login-mode-btn.active-main .login-mode-icon-circle {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #07090e;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
+
+.login-mode-btn:not(.active-sub):not(.active-main) .login-mode-icon-circle {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+}
+
+.login-mode-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.login-mode-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.login-mode-subtitle {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.login-mode-active-pill {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.login-mode-active-pill.sub {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.login-mode-active-pill.main {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* Workspace Modal & Dual-Pane Layout */
 .consultation-success-card {
   width: 100%;
@@ -552,6 +708,7 @@ select option:checked {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
 
@@ -619,6 +776,7 @@ select option:checked {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
 
@@ -805,8 +963,8 @@ select option:checked {
     right: 0;
     height: 60px;
     background: rgba(10, 14, 23, 0.95);
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
     border-top: 1px solid var(--border-subtle);
     z-index: 45;
     justify-content: space-around;
@@ -910,9 +1068,43 @@ select option:checked {
   }
 
   .modal-form-grid-2,
-  .modal-form-grid-1-4 {
+  .modal-form-grid-1-4,
+  .login-modal-grid,
+  .device-manager-grid {
     grid-template-columns: 1fr !important;
-    gap: 10px !important;
+    gap: 12px !important;
+  }
+
+  .login-mode-switcher-bar {
+    gap: 6px !important;
+    padding: 3px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .login-mode-btn {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .login-mode-icon-circle {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .login-mode-title {
+    font-size: 0.78rem !important;
+  }
+
+  .login-mode-subtitle {
+    display: none !important;
+  }
+
+  .login-mode-active-pill {
+    display: none !important;
+  }
+
+  .desktop-only-column {
+    display: none !important;
   }
 
   .modal-action-btn {
@@ -1087,8 +1279,8 @@ select option:checked {
     min-width: 0 !important;
     gap: 6px !important;
     background: rgba(10, 14, 23, 0.95) !important;
-    backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
+    backdrop-filter: blur(16px) !important;
     padding: 4px !important;
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--border-subtle) !important;

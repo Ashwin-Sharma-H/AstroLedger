@@ -6,8 +6,9 @@ import uuid
 from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.sync.models import ChangeEvent
+from apps.sync.models import ChangeEvent, ConnectedDevice, PairingTicket
 from apps.clients.models import Client
 
 User = get_user_model()
@@ -282,3 +283,78 @@ class ServerInfoAndDeviceTests(TestCase):
         # Listing should now be empty
         list_res = self.api.get('/api/sync/devices/')
         self.assertEqual(len(list_res.data), 0)
+
+
+class CompanionPairingTests(TestCase):
+    """The main-station account grants a one-time session to a companion."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='pairing_owner',
+            email='owner@astroledger.com',
+            password='TestPassword123!',
+        )
+        self.station = APIClient()
+        self.station.force_authenticate(user=self.user)
+        self.companion = APIClient()
+
+    def test_qr_ticket_is_compact_link_and_claims_once(self):
+        generated = self.station.post('/api/sync/pair/generate/', {}, format='json')
+        self.assertEqual(generated.status_code, 201)
+        data = generated.data
+        self.assertRegex(data['ticket_code'], r'^\d{6}$')
+        self.assertIn('/pair?role=companion&t=', data['pair_url'])
+        self.assertNotIn('access', data['pair_url'])
+
+        claim = self.companion.post('/api/sync/pair/claim/', {
+            'ticket': data['ticket_code'],
+            'device_id': 'android_companion_1',
+            'device_name': 'Android Companion',
+            'device_type': 'mobile',
+        }, format='json')
+        self.assertEqual(claim.status_code, 200)
+        self.assertIn('access', claim.data)
+        self.assertIn('refresh', claim.data)
+        self.assertTrue(PairingTicket.objects.get(ticket_code=data['ticket_code']).is_claimed)
+        self.assertTrue(ConnectedDevice.objects.filter(
+            user=self.user, device_id='android_companion_1', is_active=True
+        ).exists())
+
+        second_claim = self.companion.post('/api/sync/pair/claim/', {
+            'pin': data['ticket_code'],
+        }, format='json')
+        self.assertEqual(second_claim.status_code, 400)
+
+    def test_removed_companion_cannot_refresh_or_reactivate_itself(self):
+        generated = self.station.post('/api/sync/pair/generate/', {}, format='json')
+        claim = self.companion.post('/api/sync/pair/claim/', {
+            'ticket': generated.data['ticket_code'],
+            'device_id': 'revoked_android',
+            'device_name': 'Removed Android',
+            'device_type': 'mobile',
+        }, format='json')
+        self.assertEqual(claim.status_code, 200)
+
+        token = AccessToken(claim.data['access'])
+        self.assertEqual(token['companion_device_id'], 'revoked_android')
+        self.assertEqual(token['companion_session_version'], 1)
+
+        removed = self.station.delete('/api/sync/devices/revoked_android/')
+        self.assertEqual(removed.status_code, 200)
+        device = ConnectedDevice.objects.get(user=self.user, device_id='revoked_android')
+        self.assertFalse(device.is_active)
+        self.assertEqual(device.session_version, 2)
+
+        # The former companion cannot use a heartbeat to resurrect itself.
+        self.companion.credentials(HTTP_AUTHORIZATION=f"Bearer {claim.data['access']}")
+        heartbeat = self.companion.post('/api/sync/devices/heartbeat/', {
+            'device_id': 'revoked_android',
+            'device_name': 'Removed Android',
+            'device_type': 'mobile',
+        }, format='json')
+        self.assertEqual(heartbeat.status_code, 401)
+        self.assertFalse(ConnectedDevice.objects.get(user=self.user, device_id='revoked_android').is_active)
+
+        # A revoked refresh token cannot issue a fresh access token either.
+        refresh = self.companion.post('/api/auth/refresh/', {'refresh': claim.data['refresh']}, format='json')
+        self.assertEqual(refresh.status_code, 401)

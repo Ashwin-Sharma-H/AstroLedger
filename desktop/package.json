@@ -29,13 +29,10 @@
     ],
     "extraResources": [
       {
-        "from": "../backend",
-        "to": "backend",
+        "from": "../backend/dist/astroledger-server",
+        "to": "backend-server",
         "filter": [
-          "**/*",
-          "!**/__pycache__",
-          "!**/*.pyc",
-          "!backups/**/*"
+          "**/*"
         ]
       }
     ],
@@ -46,24 +43,20 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
-      "icon": "assets/icon.svg"
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "AstroLedger",
-      "uninstallDisplayName": "AstroLedger"
+      "uninstallDisplayName": "AstroLedger",
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
     }
   },
   "devDependencies": {

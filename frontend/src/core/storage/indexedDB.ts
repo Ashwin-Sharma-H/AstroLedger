@@ -88,3 +88,13 @@ export async function removeQueuedOfflineEvent(idempotencyKey: string) {
   const db = await getDB();
   await db.delete('sync_queue', idempotencyKey);
 }
+
+/** Remove account data left on a sub system after the Main PC revokes it. */
+export async function clearOfflineData() {
+  const db = await getDB();
+  await Promise.all([
+    db.clear('clients'),
+    db.clear('consultations'),
+    db.clear('sync_queue'),
+  ]);
+}

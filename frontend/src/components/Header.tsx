@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { UserCircle2, Cloud, CloudOff, Loader2, QrCode } from 'lucide-react';
+import { UserCircle2, Cloud, CloudOff, Loader2, QrCode, RefreshCw } from 'lucide-react';
 
 import { User } from '../types';
 import { SyncEngine, SyncStatus } from '../core/sync/syncEngine';
+import { SyncHealthModal } from '../features/sync/SyncHealthModal';
 
 interface HeaderProps {
   title: string;
@@ -23,7 +24,7 @@ const syncStatusConfig: Record<SyncStatus, {
 }> = {
   synced: {
     icon: <Cloud size={13} />,
-    label: 'Cloud Synced',
+    label: 'LAN Synced',
     bg: 'rgba(16, 185, 129, 0.08)',
     border: 'rgba(16, 185, 129, 0.25)',
     color: '#10b981',
@@ -50,12 +51,12 @@ const syncStatusConfig: Record<SyncStatus, {
 export const Header: React.FC<HeaderProps> = ({
   title,
   currentUser,
-  onOpenNewConsultation,
   onOpenProfileSettings,
   onOpenDeviceManager,
 }) => {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
   const [pendingCount, setPendingCount] = useState(0);
+  const [isSyncHealthOpen, setIsSyncHealthOpen] = useState(false);
 
   useEffect(() => {
     const engine = SyncEngine.getInstance();
@@ -69,14 +70,11 @@ export const Header: React.FC<HeaderProps> = ({
   const cfg = syncStatusConfig[syncStatus];
 
   const handleSyncClick = () => {
-    if (syncStatus === 'offline') {
-      const engine = SyncEngine.getInstance();
-      engine.flushQueue();
-      engine.connectWebSocket();
-    }
+    setIsSyncHealthOpen(true);
   };
 
   return (
+    <>
     <header className="topbar">
       {/* Title */}
       <div>
@@ -86,13 +84,12 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Controls */}
       <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         {/* Sync Status Pill */}
-        <div
+        <button
+          type="button"
           onClick={handleSyncClick}
           className="topbar-sync-pill"
           title={
-            syncStatus === 'offline' && pendingCount > 0
-              ? `Click to retry sync — ${pendingCount} pending`
-              : cfg.label
+            `Sync now${pendingCount > 0 ? ` — ${pendingCount} pending` : ''}`
           }
           style={{
             display: 'flex',
@@ -102,7 +99,7 @@ export const Header: React.FC<HeaderProps> = ({
             background: cfg.bg,
             borderRadius: '9999px',
             border: `1px solid ${cfg.border}`,
-            cursor: syncStatus === 'offline' ? 'pointer' : 'default',
+            cursor: 'pointer',
             transition: 'all 0.2s ease',
             fontSize: '0.75rem',
             fontWeight: 500,
@@ -120,12 +117,12 @@ export const Header: React.FC<HeaderProps> = ({
               animation: syncStatus === 'syncing' ? 'pulse 1.5s infinite' : 'none',
             }}
           />
-          {cfg.icon}
+          {syncStatus === 'syncing' ? cfg.icon : <RefreshCw size={13} />}
           <span className="topbar-text-label">
-            {cfg.label}
-            {syncStatus === 'offline' && pendingCount > 0 && ` • ${pendingCount}`}
+            {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+            {pendingCount > 0 && ` • ${pendingCount}`}
           </span>
-        </div>
+        </button>
 
         {/* Pair Devices Button */}
         {onOpenDeviceManager && (
@@ -183,5 +180,11 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
     </header>
+    <SyncHealthModal
+      isOpen={isSyncHealthOpen}
+      onClose={() => setIsSyncHealthOpen(false)}
+      isMainStation={Boolean(onOpenDeviceManager)}
+    />
+    </>
   );
 };
